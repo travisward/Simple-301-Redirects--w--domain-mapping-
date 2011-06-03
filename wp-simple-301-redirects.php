@@ -1,10 +1,10 @@
 <?php
 /*
-Plugin Name: Simple 301 Redirects
+Plugin Name: Simple 301 Redirects (on domain mapping)
 Plugin URI: http://www.scottnelle.com/simple-301-redirects-plugin-for-wordpress/
-Description: Create a list of URLs that you would like to 301 redirect to another page or site
+Description: Create a list of URLs that you would like to 301 redirect to another page or site. (Editied by Travis Ward to work with Domain Mapping)
 Version: 1.03
-Author: Scott Nellé
+Author: Scott Nellé ! Travis Ward
 Author URI: http://www.scottnelle.com/
 */
 
@@ -115,9 +115,27 @@ if (!class_exists("Simple301redirects")) {
 		*/
 		function redirect()
 		{
+			/* Begin domain mapping patch */
 			// this is what the user asked for (strip out home portion, case insensitive)
-			$userrequest = str_ireplace(get_option('home'),'',$this->getAddress());
-			$userrequest = rtrim($userrequest,'/');
+			if ( defined( 'DOMAIN_MAPPING' ) ) {
+				// Get Mapped Domain
+				global $wpdb, $blog_id;
+				$this->db =& $wpdb;
+				if(!empty($this->db->dmtable)) {
+					$this->dmt = $this->db->dmtable;
+				} else {
+					$this->dmt = $this->db->base_prefix . 'domain_mapping';
+				}
+				$domains = $this->db->get_row( "SELECT domain FROM {$this->dmt} WHERE blog_id = '{$blog_id}' LIMIT 1 /* domain mapping */");
+				$url = 'http://' . $domains->domain;
+				$userrequest = str_ireplace($url,'',$this->getAddress());
+				$userrequest = rtrim($userrequest,'/');
+				//echo $url.get_option('home').'<br>'.$userrequest.'<br>'.$this->getAddress();
+			} else {
+				$userrequest = str_ireplace(get_option('home'),'',$this->getAddress());
+				$userrequest = rtrim($userrequest,'/');
+			}
+			/* END domain mapping patch  */
 			
 			$redirects = get_option('301_redirects');
 			if (!empty($redirects)) {
@@ -137,14 +155,30 @@ if (!class_exists("Simple301redirects")) {
 			utility function to get the full address of the current request
 			credit: http://www.phpro.org/examples/Get-Full-URL.html
 		*/
+		
+		/* Begin domain mapping patch */
 		function getAddress()
 		{
 			/*** check for https ***/
 			$protocol = $_SERVER['HTTPS'] == 'on' ? 'https' : 'http';
-			/*** return the full address ***/
-			return $protocol.'://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			if ( defined( 'DOMAIN_MAPPING' ) ) {
+				// Get Mapped Domain
+				global $wpdb, $blog_id;
+				$this->db =& $wpdb;
+				if(!empty($this->db->dmtable)) {
+					$this->dmt = $this->db->dmtable;
+				} else {
+					$this->dmt = $this->db->base_prefix . 'domain_mapping';
+				}
+				$domains = $this->db->get_row( "SELECT domain FROM {$this->dmt} WHERE blog_id = '{$blog_id}' LIMIT 1 /* domain mapping */");
+				return $protocol.'://'.$domains->domain.$_SERVER['REQUEST_URI'];
+			} else {
+				/*** return the full address ***/
+				return $protocol.'://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			}
 		}
-		
+		/* End domain mapping patch */
+
 	} // end class Simple301Redirects
 	
 } // end check for existance of class
